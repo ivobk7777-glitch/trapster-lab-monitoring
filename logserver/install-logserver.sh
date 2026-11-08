@@ -20,6 +20,8 @@ apt-get install -y grafana loki
 
 echo "== 3/6 Loki"
 id loki >/dev/null 2>&1 || useradd --system --home /var/lib/loki --shell /usr/sbin/nologin loki
+getent group loki >/dev/null || groupadd -r loki
+usermod -g loki loki
 install -d -o loki -g loki -m 0750 /var/lib/loki /var/lib/loki/chunks /var/lib/loki/rules /var/lib/loki/compactor
 install -o root -g loki -m 0640 "$HERE/loki/config.yml" /etc/loki/config.yml
 systemctl enable loki >/dev/null
