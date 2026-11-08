@@ -27,6 +27,33 @@ Kali (192.168.10.10)  --policy 1-->  FortiGate  -->  Servers segment (VLAN 20)
 | `honeypot/install-alloy.sh` | linux-server01 | Installs Grafana Alloy, lets it read the Trapster log, adds weekly log rotation. |
 | `honeypot/config.alloy` | `/etc/alloy/config.alloy` | Tail, parse, label, push. |
 | `honeypot/logrotate-trapster-community` | `/etc/logrotate.d/` | Weekly rotation, 12 copies, copytruncate. |
+| `honeypot/trapster.generated.conf` | `~/trapster-community/` | Expanded Trapster config: 15 services (see below). |
+| `honeypot/deploy-config.sh` | linux-server01 | Backs up the live config, installs the expanded one, restarts Trapster. |
+
+## Expanded service coverage
+
+`honeypot/trapster.generated.conf` enables all 15 Trapster modules so the honeypot
+presents a full enterprise surface and the dashboard shows coverage across protocols:
+
+FTP (21), SSH (22), Telnet (23), DNS (53), HTTP (80), SNMP (161), LDAP (389),
+HTTPS (443), LDAPS (636), rsync (873), MSSQL (1433), MySQL (3306), RDP (3389),
+PostgreSQL (5432), VNC (5900).
+
+HTTP, HTTPS and DNS keep the settings already deployed. The other twelve use Trapster's
+module defaults (banners such as "Microsoft FTP Service", MySQL 8.4.3, RDP host WIN-RDP).
+Those banners are identifying defaults in the same category as the HTTP demo skin — fine
+for a detection/coverage test, to be reviewed with the mentor before any real deployment.
+
+Deploy (after `git pull` on the honeypot VM):
+
+```
+sudo bash honeypot/deploy-config.sh
+```
+
+It backs up the current config to a timestamped `.bak`, installs the new one, restarts the
+service, and lists the bound ports. Each service logs `connection` / `data` / `login` /
+`query` events; Alloy labels them by `logtype`, so the "Events by type" and "Events over
+time" panels pick up the new services automatically.
 
 ## Install
 
