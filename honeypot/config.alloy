@@ -1,0 +1,47 @@
+// Grafana Alloy on the honeypot VM (linux-server01, 192.168.20.10).
+// Tails the Trapster event log and ships it to Loki on log-server01.
+
+local.file_match "trapster" {
+  path_targets = [{
+    __path__ = "/var/log/trapster-community.log",
+    job      = "trapster",
+    host     = "linux-server01",
+  }]
+}
+
+loki.source.file "trapster" {
+  targets    = local.file_match.trapster.targets
+  forward_to = [loki.process.trapster.receiver]
+}
+
+loki.process "trapster" {
+  // Each line is one JSON event written by Trapster's file logger.
+  stage.json {
+    expressions = {
+      ts      = "timestamp",
+      logtype = "logtype",
+    }
+  }
+
+  // Use Trapster's own timestamp (UTC) instead of the time the line was read.
+  stage.timestamp {
+    source   = "ts"
+    format   = "2006-01-02 15:04:05.000000"
+    location = "UTC"
+  }
+
+  // logtype has only a handful of values (http.query, dns.query, ...), so it is safe as a label.
+  stage.labels {
+    values = {
+      logtype = "",
+    }
+  }
+
+  forward_to = [loki.write.logserver.receiver]
+}
+
+loki.write "logserver" {
+  endpoint {
+    url = "http://192.168.20.20:3100/loki/api/v1/push"
+  }
+}

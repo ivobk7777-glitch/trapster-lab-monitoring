@@ -1,0 +1,10 @@
+/var/log/trapster-community.log {
+    weekly
+    rotate 12
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    create 0644 root root
+}
