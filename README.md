@@ -27,8 +27,11 @@ Kali (192.168.10.10)  --policy 1-->  FortiGate  -->  Servers segment (VLAN 20)
 | `honeypot/install-alloy.sh` | linux-server01 | Installs Grafana Alloy, lets it read the Trapster log, adds weekly log rotation. |
 | `honeypot/config.alloy` | `/etc/alloy/config.alloy` | Tail, parse, label, push. |
 | `honeypot/logrotate-trapster-community` | `/etc/logrotate.d/` | Weekly rotation, 12 copies, copytruncate. |
-| `honeypot/trapster.generated.conf` | `~/trapster-community/` | Expanded Trapster config: 15 services (see below). |
+| `honeypot/trapster.generated.conf` | `/opt/trapster-community/` | Expanded Trapster config: 15 services (see below). |
 | `honeypot/deploy-config.sh` | linux-server01 | Backs up the live config, installs the expanded one, restarts Trapster. |
+| `honeypot/trapster.service` | `/etc/systemd/system/` | Runs Trapster as user `trapster` with only `CAP_NET_BIND_SERVICE`. |
+| `honeypot/setup-unprivileged.sh` | linux-server01 | One-time move from root in `/home/labadmin` to the unprivileged setup in `/opt`. |
+| `honeypot/rollback-root.sh` | linux-server01 | Undoes the move: restores the backed-up root service. |
 
 ## Expanded service coverage
 
@@ -54,6 +57,34 @@ It backs up the current config to a timestamped `.bak`, installs the new one, re
 service, and lists the bound ports. Each service logs `connection` / `data` / `login` /
 `query` events; Alloy labels them by `logtype`, so the "Events by type" and "Events over
 time" panels pick up the new services automatically.
+
+## Run Trapster without root
+
+Ten of the fifteen ports are below 1024, which is the only reason Trapster ran as root.
+Every listener is an ordinary TCP/UDP socket, so the single capability `CAP_NET_BIND_SERVICE`
+is enough. systemd grants it to the Trapster process only (`AmbientCapabilities`), instead of
+`setcap` on the Python interpreter, which would give every Python program that power.
+
+Layout after the move:
+
+- Code and venv in `/opt/trapster-community`, owned by root, read-only for `trapster`.
+  A compromised honeypot process cannot change its own code.
+- Writable for `trapster` only: `trapster/data/ssh` (SSH host keys), `trapster/data/ssl`
+  (HTTPS, LDAPS and RDP certificates) and `/var/log/trapster-community.log`.
+- Alloy keeps its read ACL on the log.
+- The old copy in `/home/labadmin/trapster-community` is not touched; it is the rollback path.
+
+On linux-server01, after `git pull` (needs internet through policy 2 for the new venv):
+
+```
+sudo bash honeypot/setup-unprivileged.sh
+```
+
+It backs up the current unit and package versions to `/root/trapster-backup-<time>`, creates
+the `trapster` system user, copies the code, rebuilds the venv with the same versions, sets
+ownership, installs `trapster.service`, starts it, and checks: process user, capability set,
+all 14 TCP and 2 UDP ports, and Alloy's read access. Undo with
+`sudo bash honeypot/rollback-root.sh`.
 
 ## Install
 
@@ -93,6 +124,6 @@ password, and open Dashboards → Honeypot → Trapster honeypot.
   Kali is the only machine with a browser. In a real deployment Grafana belongs on a
   management network, not on a segment the attacker can reach.
 - Grafana runs as a normal service; change the admin password at first login.
-- Alloy runs as the `alloy` user with read access (ACL) to the Trapster log. Trapster
-  itself is unchanged.
+- Alloy runs as the `alloy` user with read access (ACL) to the Trapster log. Trapster runs
+  as `trapster` (see "Run Trapster without root").
 - Timestamps are UTC (Trapster's own); the dashboard is set to UTC.

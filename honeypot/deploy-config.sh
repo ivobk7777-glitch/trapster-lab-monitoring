@@ -6,7 +6,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SRC="$HERE/trapster.generated.conf"
-DEST_DIR="/home/labadmin/trapster-community"
+DEST_DIR="/opt/trapster-community"
 DEST="$DEST_DIR/trapster.generated.conf"
 
 [ -f "$SRC" ] || { echo "Config not found at $SRC"; exit 1; }
@@ -23,7 +23,7 @@ if [ -f "$DEST" ]; then
 fi
 
 echo "== Install the new config"
-install -o labadmin -g labadmin -m 0644 "$SRC" "$DEST"
+install -o root -g root -m 0644 "$SRC" "$DEST"
 
 echo "== Restart Trapster"
 systemctl restart trapster
@@ -32,6 +32,7 @@ systemctl is-active trapster
 
 echo "== Listeners now bound on 192.168.20.10"
 ss -tulpnH 2>/dev/null | grep -E 'python' | awk '{print $1, $5}' | sort -t: -k2 -n || true
+echo "Runs as: $(ps -o user= -p "$(systemctl show -p MainPID --value trapster)")"
 echo
 echo "Done. Expected ports: 21 22 23 53 80 161 389 443 636 873 1433 3306 3389 5432 5900."
 echo "Watch events:  sudo tail -f /var/log/trapster-community.log"

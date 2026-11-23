@@ -1,0 +1,33 @@
+[Unit]
+Description=Trapster Community honeypot (unprivileged)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trapster
+Group=trapster
+WorkingDirectory=/opt/trapster-community
+ExecStart=/opt/trapster-community/venv/bin/python /opt/trapster-community/main.py -c /opt/trapster-community/trapster.generated.conf
+Restart=on-failure
+RestartSec=5
+
+# Only privilege: bind ports below 1024 (21, 22, 23, 53, 80, 161, 389, 443, 636, 873).
+# Ambient capabilities reach the Python process without setcap on the interpreter.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+
+Environment=HOME=/var/lib/trapster
+StateDirectory=trapster
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target
