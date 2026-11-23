@@ -15,6 +15,7 @@ TCP_PORTS="21 22 23 53 80 389 443 636 873 1433 3306 3389 5432 5900"
 UDP_PORTS="53 161"
 
 die() { echo "STOP: $*" >&2; exit 1; }
+trap 'echo "STOP: unexpected error on line $LINENO (exit $?). Trapster was not changed if this is before step 6." >&2' ERR
 
 [ "$(id -u)" -eq 0 ] || die "run with sudo"
 [ -f "$OLD/main.py" ] || die "no Trapster checkout at $OLD"
@@ -48,7 +49,9 @@ tar -C "$OLD" --exclude=./venv --exclude='*.bak' --exclude='__pycache__' -cf - .
 echo "== 4. Build a new venv with the same package versions (needs internet via policy 2)"
 python3 -m venv "$NEW/venv" || die "could not create a venv: sudo apt-get install -y python3-venv, then sudo rm -rf $NEW and run again"
 "$NEW/venv/bin/pip" install --quiet -r "$BACKUP/requirements.lock" || die "pip install failed (internet? policy 2); Trapster still runs as before. sudo rm -rf $NEW and run again"
-"$NEW/venv/bin/python" -m compileall -q "$NEW/main.py" "$NEW/trapster" >/dev/null
+echo "  packages installed; pre-compiling (optional: speeds up start, trapster cannot write the cache itself)"
+"$NEW/venv/bin/python" -m compileall -q "$NEW/main.py" "$NEW/trapster" \
+  || echo "  note: some files above did not pre-compile; harmless, Python compiles them in memory at start"
 
 echo "== 5. Ownership: code read-only for trapster; only keys and certificates writable"
 chown -R root:root "$NEW"
