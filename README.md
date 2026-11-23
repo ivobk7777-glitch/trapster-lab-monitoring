@@ -24,6 +24,8 @@ Kali (192.168.10.10)  --policy 1-->  FortiGate  -->  Servers segment (VLAN 20)
 | `logserver/grafana/provisioning/datasources/loki.yaml` | `/etc/grafana/provisioning/datasources/` | Loki data source (uid `loki`). |
 | `logserver/grafana/provisioning/dashboards/trapster.yaml` | `/etc/grafana/provisioning/dashboards/` | Loads dashboards from `/var/lib/grafana/dashboards`. |
 | `logserver/grafana/dashboards/trapster.json` | `/var/lib/grafana/dashboards/` | The dashboard (10 panels). |
+| `logserver/grafana/provisioning/alerting/trapster-alerts.yaml` | `/etc/grafana/provisioning/alerting/` | Email alert rule, contact point and notification policy. |
+| `logserver/setup-email-alerts.sh` | log-server01 | Asks for the mail settings, installs the alert rule, restarts Grafana. |
 | `honeypot/install-alloy.sh` | linux-server01 | Installs Grafana Alloy, lets it read the Trapster log, adds weekly log rotation. |
 | `honeypot/config.alloy` | `/etc/alloy/config.alloy` | Tail, parse, label, push. |
 | `honeypot/logrotate-trapster-community` | `/etc/logrotate.d/` | Weekly rotation, 12 copies, copytruncate. |
@@ -85,6 +87,43 @@ the `trapster` system user, copies the code, rebuilds the venv with the same ver
 ownership, installs `trapster.service`, starts it, and checks: process user, capability set,
 all 14 TCP and 2 UDP ports, and Alloy's read access. Undo with
 `sudo bash honeypot/rollback-root.sh`.
+
+## Email alerts
+
+Grafana on log-server01 emails the user as soon as anyone touches the honeypot: one email
+per attacker IP, listing each service touched (a 15-port scan is one message, not fifteen).
+The rule (`logserver/grafana/provisioning/alerting/trapster-alerts.yaml`) runs every 30 s
+on `sum by (src_ip, logtype) (count_over_time({job="trapster"} | json [1m]))`; resolved
+messages are off, and the same attacker is re-notified at most every 4 hours.
+
+1. **FortiGate**: the log server may not send mail yet. Policy 2 (Servers to WAN) needs
+   SMTPS (TCP 465, a predefined service). On the FortiGate console:
+
+   ```
+   config firewall policy
+   edit 2
+   append service SMTPS
+   next
+   end
+   show firewall policy 2
+   ```
+
+   Policy 2 also covers the honeypot, so the honeypot could send mail too. Accepted for
+   the trial (isolation is not the priority now); narrowing policy 2's source to the log
+   server is in-trial step 2.
+2. **Mail account**: an account that may send through SMTP on port 465. For Gmail this
+   needs 2-step verification and an app password; a company mailbox works the same way.
+3. **log-server01**, after `git pull`:
+
+   ```
+   sudo bash logserver/setup-email-alerts.sh
+   ```
+
+   It asks for the server, login, password (hidden), sender and recipients; keeps them in
+   `/etc/default/grafana-server` (root only, never in this repo); installs the rule;
+   restarts Grafana and checks for alerting errors.
+4. **Test from Kali**: `curl -m 5 -s -o /dev/null http://192.168.20.10/alerttest`. The email
+   arrives within about 2 minutes (30 s evaluation plus 30 s grouping).
 
 ## Install
 

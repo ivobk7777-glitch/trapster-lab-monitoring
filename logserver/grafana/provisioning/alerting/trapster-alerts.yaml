@@ -1,0 +1,74 @@
+# Email alert when anyone touches the honeypot.
+# Installed by logserver/setup-email-alerts.sh to /etc/grafana/provisioning/alerting/.
+# The setup script replaces __ALERT_EMAIL__ with the recipients when it installs this file.
+# Keep dollar signs out of this file: Grafana expands them as environment variables in
+# provisioning files, so the templates use .Labels and .Values instead of the dollar forms.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: honeypot-email
+    receivers:
+      - uid: honeypot-email
+        type: email
+        disableResolveMessage: true
+        settings:
+          addresses: __ALERT_EMAIL__
+          singleEmail: true
+
+# One email per attacker IP: a scan of 15 services arrives as one message listing each service.
+policies:
+  - orgId: 1
+    receiver: honeypot-email
+    group_by: ['src_ip']
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+
+groups:
+  - orgId: 1
+    name: honeypot
+    folder: Honeypot
+    interval: 30s
+    rules:
+      - uid: trapster-touched
+        title: Honeypot touched
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: high
+        annotations:
+          summary: '{{ .Labels.src_ip }} touched the honeypot ({{ .Labels.logtype }})'
+          description: >-
+            {{ .Values.B }} {{ .Labels.logtype }} event(s) from {{ .Labels.src_ip }} in the last minute.
+            Nobody should ever connect to the honeypot, so treat this as a possible intruder.
+            Dashboard: http://192.168.20.20:3000/d/trapster-honeypot
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: loki
+            model:
+              refId: A
+              queryType: instant
+              expr: sum by (src_ip, logtype) (count_over_time({job="trapster"} | json | __error__="" [1m]))
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
