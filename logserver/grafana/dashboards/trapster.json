@@ -26,7 +26,7 @@
   },
   "refresh": "30s",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "annotations": {
     "list": []
   },
@@ -514,7 +514,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "count by (src_ip) (sum by (src_ip, logtype) (count_over_time({job=\"trapster\"} | json src_ip=\"src_ip\" | __error__=\"\" [$__range])))",
+          "expr": "count by (src_ip) (sum by (src_ip, service) (label_replace(sum by (src_ip, logtype) (count_over_time({job=\"trapster\"} | json src_ip=\"src_ip\" | __error__=\"\" [$__range])), \"service\", \"$1\", \"logtype\", \"([^.]+)[.].*\")))",
           "queryType": "instant",
           "refId": "B",
           "format": "table"
@@ -560,7 +560,7 @@
     },
     {
       "id": 8,
-      "type": "bargauge",
+      "type": "table",
       "title": "What they touched",
       "description": "Events per service and action, most first. connection = opened a session; query = sent a request (HTTP, DNS, SNMP, ...); login = tried a username and password; data = sent raw bytes.",
       "datasource": {
@@ -575,30 +575,66 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "continuous-BlPu"
-          },
-          "unit": "none",
-          "min": 0,
-          "displayName": "${__data.fields.Field}"
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Events"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Service and action"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "valueMode": "color",
-        "showUnfilled": true,
-        "namePlacement": "left",
-        "sizing": "auto",
-        "minVizHeight": 16,
-        "maxVizHeight": 24,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Events",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
           ],
-          "fields": "/^Last/",
-          "values": true
+          "countRows": false,
+          "fields": ""
         }
       },
       "targets": [
@@ -611,29 +647,30 @@
           "expr": "sum by (logtype) (count_over_time({job=\"trapster\"}[$__range]))",
           "queryType": "instant",
           "refId": "A",
-          "legendFormat": "{{logtype}}"
+          "format": "table"
         }
       ],
       "transformations": [
         {
-          "id": "reduce",
+          "id": "organize",
           "options": {
-            "mode": "seriesToRows",
-            "reducers": [
-              "lastNotNull"
-            ],
-            "includeTimeField": false
+            "excludeByName": {
+              "Time": true
+            }
           }
         },
         {
-          "id": "sortBy",
+          "id": "renameByRegex",
           "options": {
-            "sort": [
-              {
-                "field": "Last *",
-                "desc": true
-              }
-            ]
+            "regex": "^Value.*",
+            "renamePattern": "Events"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^logtype$",
+            "renamePattern": "Service and action"
           }
         }
       ]
@@ -735,7 +772,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{job=\"trapster\"} | json src_ip=\"src_ip\", dst_port=\"dst_port\", method=\"extra.method\", path=\"extra.target\", user=\"extra.username\", pass=\"extra.password\", domain=\"extra.query.questions[0].domain_name\", community=\"extra.community\", module=\"extra.module\" | __error__=\"\" | label_format level=`{{ if hasSuffix \"login\" .logtype }}critical{{ else }}warning{{ end }}` | line_format `{{.src_ip}}  ->  {{.logtype}} (port {{.dst_port}}){{ if .method }}  {{.method}} {{.path}}{{ end }}{{ if .domain }}  {{.domain}}{{ end }}{{ if .community }}  community=\"{{.community}}\"{{ end }}{{ if .module }}  module={{.module}}{{ end }}{{ if .user }}  user=\"{{.user}}\" password=\"{{.pass}}\"{{ end }}`",
+          "expr": "{job=\"trapster\"} | json src_ip=\"src_ip\", dst_port=\"dst_port\", method=\"extra.method\", path=\"extra.target\", user=\"extra.username\", pass=\"extra.password\", domain=\"extra.query.questions[0].domain_name\", community=\"extra.community\", module=\"extra.module\" | __error__=\"\" | label_format level=`{{ if hasSuffix \"login\" .logtype }}critical{{ else }}warning{{ end }}`, detected_level=`{{ if hasSuffix \"login\" .logtype }}critical{{ else }}warning{{ end }}` | line_format `{{.src_ip}}  ->  {{.logtype}} (port {{.dst_port}}){{ if .method }}  {{.method}} {{.path}}{{ end }}{{ if .domain }}  {{.domain}}{{ end }}{{ if .community }}  community=\"{{.community}}\"{{ end }}{{ if .module }}  module={{.module}}{{ end }}{{ if .user }}  user=\"{{.user}}\" password=\"{{.pass}}\"{{ end }}`",
           "queryType": "range",
           "refId": "A",
           "maxLines": 300
@@ -775,7 +812,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{job=\"trapster\", logtype=~\".*login\"} | json src_ip=\"src_ip\", user=\"extra.username\", pass=\"extra.password\" | __error__=\"\" | label_format level=`{{ if hasSuffix \"login\" .logtype }}critical{{ else }}warning{{ end }}` | line_format `{{.src_ip}}  {{.logtype}}  user=\"{{.user}}\"  password=\"{{.pass}}\"`",
+          "expr": "{job=\"trapster\", logtype=~\".*login\"} | json src_ip=\"src_ip\", user=\"extra.username\", pass=\"extra.password\" | __error__=\"\" | label_format level=`{{ if hasSuffix \"login\" .logtype }}critical{{ else }}warning{{ end }}`, detected_level=`{{ if hasSuffix \"login\" .logtype }}critical{{ else }}warning{{ end }}` | line_format `{{.src_ip}}  {{.logtype}}  user=\"{{.user}}\"  password=\"{{.pass}}\"`",
           "queryType": "range",
           "refId": "A",
           "maxLines": 300
