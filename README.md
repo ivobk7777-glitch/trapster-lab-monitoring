@@ -23,7 +23,7 @@ Kali (192.168.10.10)  --policy 1-->  FortiGate  -->  Servers segment (VLAN 20)
 | `logserver/loki/config.yml` | `/etc/loki/config.yml` | Single-node Loki, filesystem storage, 90-day retention. |
 | `logserver/grafana/provisioning/datasources/loki.yaml` | `/etc/grafana/provisioning/datasources/` | Loki data source (uid `loki`). |
 | `logserver/grafana/provisioning/dashboards/trapster.yaml` | `/etc/grafana/provisioning/dashboards/` | Loads dashboards from `/var/lib/grafana/dashboards`. |
-| `logserver/grafana/dashboards/trapster.json` | `/var/lib/grafana/dashboards/` | The dashboard (10 panels). |
+| `logserver/grafana/dashboards/trapster.json` | `/var/lib/grafana/dashboards/` | The dashboard (see "Dashboard" below). |
 | `logserver/grafana/provisioning/alerting/trapster-alerts.yaml` | `/etc/grafana/provisioning/alerting/` | Email alert rule, contact point and notification policy. |
 | `logserver/setup-email-alerts.sh` | log-server01 | Asks for the mail settings, installs the alert rule, restarts Grafana. |
 | `honeypot/install-alloy.sh` | linux-server01 | Installs Grafana Alloy, lets it read the Trapster log, adds weekly log rotation. |
@@ -133,6 +133,29 @@ messages are off, and the same attacker is re-notified at most every 4 hours.
    restarts Grafana and checks for alerting errors.
 4. **Test from Kali**: `curl -m 5 -s -o /dev/null http://192.168.20.10/alerttest`. The email
    arrives within about 2 minutes (30 s evaluation plus 30 s grouping).
+
+## Dashboard
+
+"Trapster honeypot" (folder Honeypot) is built to be read at a glance:
+
+- **Top row**: activity in the last hour (turns red when anyone touched the honeypot), events,
+  attacker IPs, services touched, login attempts (red as soon as there is one).
+- **Attackers**: one row per source IP with events, number of services and login attempts.
+- **What they touched**: events per service and action (`ssh.login`, `http.query`, ...), most first.
+- **Events over time, by service**.
+- **Activity feed**: every event as one readable line (source, service, port, and the path,
+  domain, SNMP community or credentials when present); yellow = contact, red = login attempt.
+- **Credentials tried**: every username and password an attacker used.
+- **Details** (collapsed row): the HTTP, DNS and raw event logs.
+
+Trapster logs completed connections, so a half-open SYN scan (`nmap -sS`) only shows up on the
+UDP services (DNS, SNMP). Use `nmap -sT` or `-sV` to see every port in a test.
+
+Update on log-server01 after `git pull` (Grafana rereads the file within 30 seconds):
+
+```
+sudo install -o grafana -g grafana -m 0644 logserver/grafana/dashboards/trapster.json /var/lib/grafana/dashboards/trapster.json
+```
 
 ## Install
 

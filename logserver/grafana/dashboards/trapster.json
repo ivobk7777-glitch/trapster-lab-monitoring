@@ -1,7 +1,7 @@
 {
   "uid": "trapster-honeypot",
   "title": "Trapster honeypot",
-  "description": "Events from the Trapster Community honeypot on linux-server01 (192.168.20.10), shipped by Alloy to Loki.",
+  "description": "Trapster Community honeypot on linux-server01 (192.168.20.10). Every event is a possible intruder; email alerts go out per attacker IP.",
   "tags": [
     "honeypot",
     "trapster",
@@ -26,27 +26,55 @@
   },
   "refresh": "30s",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "annotations": {
     "list": []
   },
   "templating": {
     "list": []
   },
-  "links": [],
+  "links": [
+    {
+      "title": "Alert rules",
+      "type": "link",
+      "url": "/alerting/list",
+      "icon": "bell",
+      "targetBlank": false,
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": false,
+      "tags": []
+    }
+  ],
   "panels": [
     {
       "id": 1,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**How to read this dashboard.** Nothing legitimate ever connects to the honeypot (192.168.20.10), so **every event here is a possible intruder**. The user gets one email per attacker IP. *Note:* Trapster logs completed connections, so a half-open SYN scan (`nmap -sS`) only shows up on the UDP services (DNS, SNMP); a connect scan, banner grab or login attempt shows up on every port."
+      }
+    },
+    {
+      "id": 2,
       "type": "stat",
-      "title": "Events in range",
-      "description": "All Trapster events in the selected time range.",
+      "title": "Activity in the last hour",
+      "description": "Events in the last 60 minutes, whatever time range is selected. Red means someone touched the honeypot recently.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 3,
         "w": 6,
         "h": 4
       },
@@ -56,74 +84,17 @@
             "mode": "thresholds"
           },
           "unit": "none",
+          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
                 "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "value",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "editorMode": "code",
-          "expr": "sum(count_over_time({job=\"trapster\"}[$__range]))",
-          "queryType": "instant",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "id": 2,
-      "type": "stat",
-      "title": "Attacker IPs",
-      "description": "Distinct source addresses seen by the honeypot.",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "gridPos": {
-        "x": 6,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "unit": "none",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+              },
               {
-                "color": "orange",
-                "value": null
+                "color": "red",
+                "value": 1
               }
             ]
           }
@@ -138,10 +109,10 @@
           "fields": "",
           "values": false
         },
-        "colorMode": "value",
+        "colorMode": "background",
         "graphMode": "none",
         "textMode": "value",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "wideLayout": true,
         "showPercentChange": false
@@ -153,7 +124,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "count(sum by (src_ip) (count_over_time({job=\"trapster\"} | json | __error__=\"\"[$__range])))",
+          "expr": "sum(count_over_time({job=\"trapster\"}[1h]))",
           "queryType": "instant",
           "refId": "A"
         }
@@ -162,16 +133,16 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "HTTP and HTTPS requests",
-      "description": "",
+      "title": "Events",
+      "description": "All honeypot events in the selected time range.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 6,
+        "x": 6,
+        "y": 3,
+        "w": 5,
         "h": 4
       },
       "fieldConfig": {
@@ -180,6 +151,7 @@
             "mode": "thresholds"
           },
           "unit": "none",
+          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -203,7 +175,7 @@
         "colorMode": "value",
         "graphMode": "none",
         "textMode": "value",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "wideLayout": true,
         "showPercentChange": false
@@ -215,7 +187,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({job=\"trapster\", logtype=~\"https?.query\"}[$__range]))",
+          "expr": "sum(count_over_time({job=\"trapster\"}[$__range]))",
           "queryType": "instant",
           "refId": "A"
         }
@@ -224,16 +196,16 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "DNS queries",
-      "description": "",
+      "title": "Attacker IPs",
+      "description": "Different source addresses in the selected time range.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "gridPos": {
-        "x": 18,
-        "y": 0,
-        "w": 6,
+        "x": 11,
+        "y": 3,
+        "w": 5,
         "h": 4
       },
       "fieldConfig": {
@@ -242,6 +214,70 @@
             "mode": "thresholds"
           },
           "unit": "none",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "count(sum by (src_ip) (count_over_time({job=\"trapster\"} | json src_ip=\"src_ip\" | __error__=\"\" [$__range])))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Services touched",
+      "description": "How many of the 15 decoy services were contacted (SSH, HTTP, DNS, ...).",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 3,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "none",
+          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -265,7 +301,7 @@
         "colorMode": "value",
         "graphMode": "none",
         "textMode": "value",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "wideLayout": true,
         "showPercentChange": false
@@ -277,165 +313,44 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({job=\"trapster\", logtype=\"dns.query\"}[$__range]))",
+          "expr": "count(sum by (service) (label_replace(sum by (logtype) (count_over_time({job=\"trapster\"}[$__range])), \"service\", \"$1\", \"logtype\", \"([^.]+)[.].*\")))",
           "queryType": "instant",
           "refId": "A"
         }
       ]
     },
     {
-      "id": 5,
-      "type": "timeseries",
-      "title": "Events over time, by type",
-      "description": "Stacked count of events per interval. logtype is a Loki label set by Alloy.",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 4,
-        "w": 16,
-        "h": 9
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "none",
-          "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 80,
-            "lineWidth": 1,
-            "stacking": {
-              "mode": "normal",
-              "group": "A"
-            },
-            "axisPlacement": "auto",
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "editorMode": "code",
-          "expr": "sum by (logtype) (count_over_time({job=\"trapster\"}[$__auto]))",
-          "queryType": "range",
-          "refId": "A",
-          "legendFormat": "{{logtype}}"
-        }
-      ]
-    },
-    {
       "id": 6,
-      "type": "piechart",
-      "title": "Events by type",
-      "description": "",
+      "type": "stat",
+      "title": "Login attempts",
+      "description": "Usernames and passwords tried against any service. Red as soon as there is one.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "gridPos": {
-        "x": 16,
-        "y": 4,
-        "w": 8,
-        "h": 9
+        "x": 20,
+        "y": 3,
+        "w": 4,
+        "h": 4
       },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "pieType": "donut",
-        "displayLabels": [
-          "name",
-          "percent"
-        ],
-        "legend": {
-          "displayMode": "list",
-          "placement": "right",
-          "showLegend": true,
-          "values": [
-            "value"
-          ]
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "maxDataPoints": 30,
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "editorMode": "code",
-          "expr": "sum by (logtype) (count_over_time({job=\"trapster\"}[$__range]))",
-          "queryType": "range",
-          "refId": "A",
-          "legendFormat": "{{logtype}}"
-        }
-      ]
-    },
-    {
-      "id": 7,
-      "type": "bargauge",
-      "title": "Top source IPs",
-      "description": "Source addresses with the most events. In the lab this should be Kali, 192.168.10.10.",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 13,
-        "w": 8,
-        "h": 9
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
+            "mode": "thresholds"
           },
           "unit": "none",
-          "min": 0,
+          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
               }
             ]
           }
@@ -450,56 +365,13 @@
           "fields": "",
           "values": false
         },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "namePlacement": "left",
-        "valueMode": "color",
-        "sizing": "auto",
-        "minVizHeight": 16,
-        "minVizWidth": 8,
-        "maxVizHeight": 300
-      },
-      "maxDataPoints": 30,
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "editorMode": "code",
-          "expr": "topk(10, sum by (src_ip) (count_over_time({job=\"trapster\"} | json | __error__=\"\"[$__range])))",
-          "queryType": "range",
-          "refId": "A",
-          "legendFormat": "{{src_ip}}"
-        }
-      ]
-    },
-    {
-      "id": 8,
-      "type": "logs",
-      "title": "HTTP and HTTPS request log",
-      "description": "One line per request: source, protocol, method, path, status code, user agent.",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "gridPos": {
-        "x": 8,
-        "y": 13,
-        "w": 16,
-        "h": 9
-      },
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "enableInfiniteScrolling": false
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
       },
       "targets": [
         {
@@ -508,38 +380,121 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{job=\"trapster\", logtype=~\"https?.query\"} | json | __error__=\"\" | line_format \"{{.src_ip}}:{{.src_port}}  {{.logtype}}  {{.extra_method}} {{.extra_target}} -> {{.extra_status_code}}  UA={{.extra_headers_user_agent}}\"",
-          "queryType": "range",
-          "refId": "A",
-          "maxLines": 200
+          "expr": "sum(count_over_time({job=\"trapster\", logtype=~\".*login\"}[$__range]))",
+          "queryType": "instant",
+          "refId": "A"
         }
       ]
     },
     {
-      "id": 9,
-      "type": "logs",
-      "title": "DNS query log",
-      "description": "Queries received by the DNS honeypot (UDP). The name is shown as labels, e.g. [example, com]. Type 1 = A, 28 = AAAA, 15 = MX.",
+      "id": 7,
+      "type": "table",
+      "title": "Attackers",
+      "description": "One row per source IP: how many events, how many different services, and how many login attempts.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "gridPos": {
         "x": 0,
-        "y": 22,
+        "y": 7,
         "w": 12,
         "h": 9
       },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Attacker IP"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Login attempts"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Events"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-YlRd"
+                }
+              }
+            ]
+          }
+        ]
+      },
       "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "enableInfiniteScrolling": false
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Events",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
       },
       "targets": [
         {
@@ -548,27 +503,219 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{job=\"trapster\", logtype=\"dns.query\"} | json src_ip=\"src_ip\", src_port=\"src_port\", domain=\"extra.query.questions[0].domain_name\", qtype=\"extra.query.questions[0].query_type\" | __error__=\"\" | line_format \"{{.src_ip}}:{{.src_port}}  DNS  {{.domain}}  type {{.qtype}}\"",
-          "queryType": "range",
+          "expr": "sum by (src_ip) (count_over_time({job=\"trapster\"} | json src_ip=\"src_ip\" | __error__=\"\" [$__range]))",
+          "queryType": "instant",
           "refId": "A",
-          "maxLines": 200
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "count by (src_ip) (sum by (src_ip, logtype) (count_over_time({job=\"trapster\"} | json src_ip=\"src_ip\" | __error__=\"\" [$__range])))",
+          "queryType": "instant",
+          "refId": "B",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (src_ip) (count_over_time({job=\"trapster\", logtype=~\".*login\"} | json src_ip=\"src_ip\" | __error__=\"\" [$__range]))",
+          "queryType": "instant",
+          "refId": "C",
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "src_ip": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3
+            },
+            "renameByName": {
+              "src_ip": "Attacker IP",
+              "Value #A": "Events",
+              "Value #B": "Services touched",
+              "Value #C": "Login attempts"
+            }
+          }
         }
       ]
     },
     {
-      "id": 10,
-      "type": "logs",
-      "title": "Latest raw events",
-      "description": "Unparsed JSON lines from /var/log/trapster-community.log.",
+      "id": 8,
+      "type": "bargauge",
+      "title": "What they touched",
+      "description": "Events per service and action, most first. connection = opened a session; query = sent a request (HTTP, DNS, SNMP, ...); login = tried a username and password; data = sent raw bytes.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "gridPos": {
         "x": 12,
-        "y": 22,
+        "y": 7,
         "w": 12,
         "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "unit": "none",
+          "min": 0,
+          "displayName": "${__data.fields.Field}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": true,
+        "namePlacement": "left",
+        "sizing": "auto",
+        "minVizHeight": 16,
+        "maxVizHeight": 24,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Last/",
+          "values": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (logtype) (count_over_time({job=\"trapster\"}[$__range]))",
+          "queryType": "instant",
+          "refId": "A",
+          "legendFormat": "{{logtype}}"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "mode": "seriesToRows",
+            "reducers": [
+              "lastNotNull"
+            ],
+            "includeTimeField": false
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Last *",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Events over time, by service",
+      "description": "Stacked events per interval, grouped by decoy service.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 85,
+            "lineWidth": 1,
+            "barAlignment": 0,
+            "barWidthFactor": 0.9,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "events",
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (service) (label_replace(sum by (logtype) (count_over_time({job=\"trapster\"}[$__auto])), \"service\", \"$1\", \"logtype\", \"([^.]+)[.].*\"))",
+          "queryType": "range",
+          "refId": "A",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "logs",
+      "title": "Activity feed",
+      "description": "Every event as one readable line, newest first. Yellow = contact, red = login attempt. Expand a line for all fields.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 14,
+        "h": 11
       },
       "options": {
         "showTime": true,
@@ -588,10 +735,184 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{job=\"trapster\"}",
+          "expr": "{job=\"trapster\"} | json src_ip=\"src_ip\", dst_port=\"dst_port\", method=\"extra.method\", path=\"extra.target\", user=\"extra.username\", pass=\"extra.password\", domain=\"extra.query.questions[0].domain_name\", community=\"extra.community\", module=\"extra.module\" | __error__=\"\" | label_format level=`{{ if hasSuffix \"login\" .logtype }}critical{{ else }}warning{{ end }}` | line_format `{{.src_ip}}  ->  {{.logtype}} (port {{.dst_port}}){{ if .method }}  {{.method}} {{.path}}{{ end }}{{ if .domain }}  {{.domain}}{{ end }}{{ if .community }}  community=\"{{.community}}\"{{ end }}{{ if .module }}  module={{.module}}{{ end }}{{ if .user }}  user=\"{{.user}}\" password=\"{{.pass}}\"{{ end }}`",
           "queryType": "range",
           "refId": "A",
-          "maxLines": 200
+          "maxLines": 300
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "logs",
+      "title": "Credentials tried",
+      "description": "Every username and password an attacker tried, on any service.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 24,
+        "w": 10,
+        "h": 11
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "enableInfiniteScrolling": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{job=\"trapster\", logtype=~\".*login\"} | json src_ip=\"src_ip\", user=\"extra.username\", pass=\"extra.password\" | __error__=\"\" | label_format level=`{{ if hasSuffix \"login\" .logtype }}critical{{ else }}warning{{ end }}` | line_format `{{.src_ip}}  {{.logtype}}  user=\"{{.user}}\"  password=\"{{.pass}}\"`",
+          "queryType": "range",
+          "refId": "A",
+          "maxLines": 300
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Details: HTTP, DNS and raw events",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 13,
+          "type": "logs",
+          "title": "HTTP and HTTPS request log",
+          "description": "One line per request: source, protocol, method, path, status code, user agent.",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 36,
+            "w": 12,
+            "h": 9
+          },
+          "options": {
+            "showTime": true,
+            "wrapLogMessage": true,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "enableInfiniteScrolling": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "editorMode": "code",
+              "expr": "{job=\"trapster\", logtype=~\"https?.query\"} | json | __error__=\"\" | line_format \"{{.src_ip}}:{{.src_port}}  {{.logtype}}  {{.extra_method}} {{.extra_target}} -> {{.extra_status_code}}  UA={{.extra_headers_user_agent}}\"",
+              "queryType": "range",
+              "refId": "A",
+              "maxLines": 200
+            }
+          ]
+        },
+        {
+          "id": 14,
+          "type": "logs",
+          "title": "DNS query log",
+          "description": "Queries received by the DNS honeypot (UDP). The name is shown as labels, e.g. [example, com]. Type 1 = A, 28 = AAAA, 15 = MX.",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 36,
+            "w": 12,
+            "h": 9
+          },
+          "options": {
+            "showTime": true,
+            "wrapLogMessage": true,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "enableInfiniteScrolling": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "editorMode": "code",
+              "expr": "{job=\"trapster\", logtype=\"dns.query\"} | json src_ip=\"src_ip\", src_port=\"src_port\", domain=\"extra.query.questions[0].domain_name\", qtype=\"extra.query.questions[0].query_type\" | __error__=\"\" | line_format \"{{.src_ip}}:{{.src_port}}  DNS  {{.domain}}  type {{.qtype}}\"",
+              "queryType": "range",
+              "refId": "A",
+              "maxLines": 200
+            }
+          ]
+        },
+        {
+          "id": 15,
+          "type": "logs",
+          "title": "Latest raw events",
+          "description": "Unparsed JSON lines from /var/log/trapster-community.log.",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 45,
+            "w": 24,
+            "h": 10
+          },
+          "options": {
+            "showTime": true,
+            "wrapLogMessage": true,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "enableInfiniteScrolling": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "editorMode": "code",
+              "expr": "{job=\"trapster\"}",
+              "queryType": "range",
+              "refId": "A",
+              "maxLines": 200
+            }
+          ]
         }
       ]
     }
