@@ -26,7 +26,7 @@
   },
   "refresh": "30s",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "annotations": {
     "list": []
   },
@@ -60,14 +60,14 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**How to read this dashboard.** Nothing legitimate ever connects to the honeypot (192.168.20.10), so **every event here is a possible intruder**. The user gets one email per attacker IP. *Note:* Trapster logs completed connections, so a half-open SYN scan (`nmap -sS`) only shows up on the UDP services (DNS, SNMP); a connect scan, banner grab or login attempt shows up on every port."
+        "content": "**How to read this dashboard.** Nothing legitimate ever connects to the honeypot (192.168.20.10), so **every event here is a possible intruder**. The user gets one email per attacker IP. Two sources: **Trapster** logs completed connections (logins, requests, banners); the **packet-level scan sensor** also catches half-open (SYN), NULL, FIN and Xmas scans that never complete a connection, sampled at up to 25 packets per second per scan type."
       }
     },
     {
       "id": 2,
       "type": "stat",
       "title": "Activity in the last hour",
-      "description": "Events in the last 60 minutes, whatever time range is selected. Red means someone touched the honeypot recently.",
+      "description": "Trapster events plus scan packets in the last 60 minutes, whatever time range is selected. Red means someone touched or scanned the honeypot recently.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -124,7 +124,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({job=\"trapster\"}[1h]))",
+          "expr": "sum(count_over_time({job=~\"trapster|trapster-sensor\"}[1h]))",
           "queryType": "instant",
           "refId": "A"
         }
@@ -134,7 +134,7 @@
       "id": 3,
       "type": "stat",
       "title": "Events",
-      "description": "All honeypot events in the selected time range.",
+      "description": "Trapster events (completed connections) in the selected time range. Scan packets are counted separately in the scan sensor section.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -197,7 +197,7 @@
       "id": 4,
       "type": "stat",
       "title": "Attacker IPs",
-      "description": "Different source addresses in the selected time range.",
+      "description": "Different source addresses seen by Trapster or by the scan sensor in the selected time range.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -250,7 +250,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "count(sum by (src_ip) (count_over_time({job=\"trapster\"} | json src_ip=\"src_ip\" | __error__=\"\" [$__range])))",
+          "expr": "count(sum by (src_ip) (count_over_time({job=~\"trapster|trapster-sensor\"} | json src_ip=\"src_ip\" | __error__=\"\" [$__range])))",
           "queryType": "instant",
           "refId": "A"
         }
@@ -387,6 +387,368 @@
       ]
     },
     {
+      "id": 16,
+      "type": "row",
+      "title": "Packet-level scan sensor (kernel log, catches stealth scans)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Scan packets",
+      "description": "Scan packets logged by the honeypot's kernel (SYN, NULL, FIN, Xmas) in the selected range. A rate-limited sample: at most 25 per second per scan type.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 4,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "none",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({job=\"trapster-sensor\"}[$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "stat",
+      "title": "Ports probed",
+      "description": "Different destination ports that received scan packets. Shows how wide a scan was, including ports where no decoy listens.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 8,
+        "w": 4,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "none",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "count(sum by (dst_port) (count_over_time({job=\"trapster-sensor\"} | json dst_port=\"dst_port\" | __error__=\"\" [$__range])))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "table",
+      "title": "Scanners",
+      "description": "One row per scanning source: scan packets, different ports probed, and how many scan types (syn, null, fin, xmas) were used.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 8,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Scanner IP"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Packets"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-YlRd"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Packets",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (src_ip) (count_over_time({job=\"trapster-sensor\"} | json src_ip=\"src_ip\" | __error__=\"\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "count by (src_ip) (sum by (src_ip, dst_port) (count_over_time({job=\"trapster-sensor\"} | json src_ip=\"src_ip\", dst_port=\"dst_port\" | __error__=\"\" [$__range])))",
+          "queryType": "instant",
+          "refId": "B",
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "count by (src_ip) (sum by (src_ip, logtype) (count_over_time({job=\"trapster-sensor\"} | json src_ip=\"src_ip\" | __error__=\"\" [$__range])))",
+          "queryType": "instant",
+          "refId": "C",
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "src_ip": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3
+            },
+            "renameByName": {
+              "src_ip": "Scanner IP",
+              "Value #A": "Packets",
+              "Value #B": "Ports",
+              "Value #C": "Scan types"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Scan packets over time, by type",
+      "description": "Stacked scan packets per interval: scan.syn (SYN and connect scans), scan.null, scan.fin, scan.xmas.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 8,
+        "w": 8,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 85,
+            "lineWidth": 1,
+            "barAlignment": 0,
+            "barWidthFactor": 0.9,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "events",
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (logtype) (count_over_time({job=\"trapster-sensor\"}[$__auto]))",
+          "queryType": "range",
+          "refId": "A",
+          "legendFormat": "{{logtype}}"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "row",
+      "title": "Trapster events (completed connections)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
       "id": 7,
       "type": "table",
       "title": "Attackers",
@@ -397,7 +759,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 7,
+        "y": 16,
         "w": 12,
         "h": 9
       },
@@ -569,7 +931,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 7,
+        "y": 16,
         "w": 12,
         "h": 9
       },
@@ -686,7 +1048,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 25,
         "w": 24,
         "h": 8
       },
@@ -750,7 +1112,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 33,
         "w": 14,
         "h": 11
       },
@@ -790,7 +1152,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 24,
+        "y": 33,
         "w": 10,
         "h": 11
       },
@@ -822,11 +1184,11 @@
     {
       "id": 12,
       "type": "row",
-      "title": "Details: HTTP, DNS and raw events",
+      "title": "Details: HTTP, DNS, scan packets and raw events",
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 44,
         "w": 24,
         "h": 1
       },
@@ -842,7 +1204,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 36,
+            "y": 45,
             "w": 12,
             "h": 9
           },
@@ -882,7 +1244,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 36,
+            "y": 45,
             "w": 12,
             "h": 9
           },
@@ -922,7 +1284,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 45,
+            "y": 54,
             "w": 24,
             "h": 10
           },
@@ -948,6 +1310,46 @@
               "queryType": "range",
               "refId": "A",
               "maxLines": 200
+            }
+          ]
+        },
+        {
+          "id": 22,
+          "type": "logs",
+          "title": "Scan packet log",
+          "description": "Every scan packet the sensor logged (rate-limited sample), newest first.",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 64,
+            "w": 24,
+            "h": 9
+          },
+          "options": {
+            "showTime": true,
+            "wrapLogMessage": true,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "enableInfiniteScrolling": false
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "editorMode": "code",
+              "expr": "{job=\"trapster-sensor\"} | json src_ip=\"src_ip\", dst_port=\"dst_port\" | __error__=\"\" | line_format \"{{.src_ip}}  ->  {{.logtype}}  port {{.dst_port}}\"",
+              "queryType": "range",
+              "refId": "A",
+              "maxLines": 300
             }
           ]
         }
