@@ -1,6 +1,7 @@
-# Email alert when anyone touches the honeypot.
-# Installed by logserver/setup-email-alerts.sh to /etc/grafana/provisioning/alerting/.
-# The setup script replaces __ALERT_EMAIL__ with the recipients when it installs this file.
+# Email alerts when anyone touches (Trapster) or scans (packet-level sensor) the honeypot.
+# First install: logserver/setup-email-alerts.sh. Later rule changes: logserver/update-alert-rules.sh
+# (keeps the installed recipients, no SMTP password needed). Both put it in /etc/grafana/provisioning/alerting/
+# and replace __ALERT_EMAIL__ with the recipients.
 # Keep dollar signs out of this file: Grafana expands them as environment variables in
 # provisioning files, so the templates use .Labels and .Values instead of the dollar forms.
 apiVersion: 1
@@ -55,6 +56,52 @@ groups:
               refId: A
               queryType: instant
               expr: sum by (src_ip, logtype) (count_over_time({job="trapster"} | json | __error__="" [1m]))
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+
+      # Packet-level scan sensor (honeypot/scan-sensor.nft): stealth scans Trapster cannot see.
+      # Same notification policy (group_by src_ip), so both rules for one attacker share an email thread.
+      - uid: trapster-scanned
+        title: Honeypot scanned (packet level)
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: high
+        annotations:
+          summary: '{{ .Labels.src_ip }} is scanning the honeypot ({{ .Labels.logtype }})'
+          description: >-
+            {{ .Values.B }} {{ .Labels.logtype }} packet(s) from {{ .Labels.src_ip }} in the last minute,
+            seen at packet level by the honeypot's kernel. This catches half-open, NULL, FIN and Xmas
+            scans that Trapster itself cannot see. The count is a rate-limited sample (at most 25 packets
+            per second per scan type), so a large scan shows a capped number.
+            Dashboard: http://192.168.20.20:3000/d/trapster-honeypot
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: loki
+            model:
+              refId: A
+              queryType: instant
+              expr: sum by (src_ip, logtype) (count_over_time({job="trapster-sensor"} | json | __error__="" [1m]))
           - refId: B
             datasourceUid: __expr__
             model:
