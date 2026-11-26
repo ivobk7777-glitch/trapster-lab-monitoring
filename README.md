@@ -97,12 +97,21 @@ on `sum by (src_ip, logtype) (count_over_time({job="trapster"} | json [1m]))`; r
 messages are off, and the same attacker is re-notified at most every 4 hours.
 
 1. **FortiGate**: the log server may not send mail yet. Policy 2 (Servers to WAN) needs
-   SMTPS (TCP 465, a predefined service). On the FortiGate console:
+   TCP 587 (mail submission with STARTTLS). Port 465 (SMTPS) does not work in this lab: a
+   FortiGate capture showed the SYN leaving port1 with no reply, so the hosting provider
+   upstream of Proxmox drops it (many providers block 25 and 465 against spam). Add 587 as
+   a custom service and drop SMTPS. On the FortiGate console:
 
    ```
+   config firewall service custom
+   edit "SMTP-587"
+   set tcp-portrange 587
+   next
+   end
    config firewall policy
    edit 2
-   append service SMTPS
+   append service "SMTP-587"
+   unselect service "SMTPS"
    next
    end
    show firewall policy 2
@@ -111,7 +120,7 @@ messages are off, and the same attacker is re-notified at most every 4 hours.
    Policy 2 also covers the honeypot, so the honeypot could send mail too. Accepted for
    the trial (isolation is not the priority now); narrowing policy 2's source to the log
    server is in-trial step 2.
-2. **Mail account**: an account that may send through SMTP on port 465. For Gmail this
+2. **Mail account**: an account that may send through SMTP on port 587. For Gmail this
    needs 2-step verification and an app password; a company mailbox works the same way.
 3. **log-server01**, after `git pull`:
 

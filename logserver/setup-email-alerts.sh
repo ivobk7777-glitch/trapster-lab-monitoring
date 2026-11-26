@@ -17,9 +17,9 @@ die() { echo "STOP: $*" >&2; exit 1; }
 [ -f "$RULE_SRC" ] || die "alert rule not found at $RULE_SRC"
 systemctl show grafana-server -p EnvironmentFiles | grep -q "$ENVFILE" || die "grafana-server does not read $ENVFILE"
 
-echo "== 1. Mail server settings (port 465 = SMTPS, the FortiGate's predefined service)"
-read -rp "SMTP server host:port [smtp.gmail.com:465]: " SMTP_HOST
-SMTP_HOST="${SMTP_HOST:-smtp.gmail.com:465}"
+echo "== 1. Mail server settings (port 587 with STARTTLS; the lab's upstream provider blocks 465)"
+read -rp "SMTP server host:port [smtp.gmail.com:587]: " SMTP_HOST
+SMTP_HOST="${SMTP_HOST:-smtp.gmail.com:587}"
 read -rp "SMTP login (full address): " SMTP_USER
 read -rsp "SMTP password (app password, not shown): " SMTP_PASS; echo
 read -rp "From address [$SMTP_USER]: " FROM
@@ -33,10 +33,11 @@ done
 
 echo "== 2. Can this server reach the mail server?"
 H="${SMTP_HOST%:*}"; P="${SMTP_HOST##*:}"
-if timeout 6 bash -c "exec 3<>/dev/tcp/$H/$P" 2>/dev/null; then
+IP4="$(getent ahostsv4 "$H" | awk 'NR==1{print $1}')"
+if [ -n "$IP4" ] && timeout 6 bash -c "exec 3<>/dev/tcp/$IP4/$P" 2>/dev/null; then
   echo "  reached $H on port $P"
 else
-  echo "  WARNING: cannot reach $H:$P. If this is the FortiGate, add SMTPS to policy 2 (see README)."
+  echo "  WARNING: cannot reach $H:$P over IPv4. Check that policy 2 allows TCP $P (see README)."
   echo "  Continuing; alerts will be sent once the port is open."
 fi
 
@@ -47,6 +48,8 @@ sed -i "/^$BEGIN\$/,/^$END\$/d" "$ENVFILE"
   echo "$BEGIN"
   echo "GF_SMTP_ENABLED=true"
   echo "GF_SMTP_HOST='$SMTP_HOST'"
+  # 465 is TLS from the start; any other port must upgrade with STARTTLS so the password never goes in clear
+  [ "$P" = "465" ] || echo "GF_SMTP_STARTTLS_POLICY='MandatoryStartTLS'"
   echo "GF_SMTP_USER='$SMTP_USER'"
   echo "GF_SMTP_PASSWORD='$SMTP_PASS'"
   echo "GF_SMTP_FROM_ADDRESS='$FROM'"
