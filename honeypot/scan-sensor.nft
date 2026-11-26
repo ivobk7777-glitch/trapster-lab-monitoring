@@ -1,0 +1,55 @@
+#!/usr/sbin/nft -f
+# Honeypot packet-level scan sensor (finding N1).
+#
+# Trapster only logs completed TCP connections, so half-open (SYN), NULL, FIN and Xmas scans
+# leave no Trapster event. This table makes the kernel log those scan packets instead. Alloy
+# reads them from the journal and ships them to Loki as job="trapster-sensor".
+#
+# It ONLY LOGS. It never drops, rejects or changes a packet: the chain policy is accept and the
+# only verdict used is "return". Whatever an attacker sees from the honeypot stays the same.
+# It lives in its own table, so /etc/nftables.conf and ufw are not touched.
+#
+# Installed to /etc/hp-scan-sensor/scan-sensor.nft and loaded by hp-scan-sensor.service.
+# Remove: sudo systemctl disable --now hp-scan-sensor   (or: sudo nft delete table inet hp_scan_sensor)
+
+# Load twice safely: create the table if missing, delete it, then define it again.
+# nft -f applies the whole file as one transaction.
+table inet hp_scan_sensor
+delete table inet hp_scan_sensor
+
+table inet hp_scan_sensor {
+	# Sources that are never logged. Empty on purpose. Add a future management address here
+	# (for example the web UI from the mentor's product flow) so its traffic is not seen as a scan:
+	#   nft add element inet hp_scan_sensor allow_src { 192.168.20.30 }
+	set allow_src {
+		type ipv4_addr
+		flags interval
+	}
+
+	# input hook: only traffic addressed to the honeypot itself. priority -10: before ufw.
+	chain input {
+		type filter hook input priority -10; policy accept;
+
+		iifname "lo" return
+		ip saddr @allow_src return
+
+		# Each scan type has its own rate limit (25 packets/s, bursts of 100): a full "nmap -p-"
+		# sends 65 535 SYNs, and detection needs only a sample, not every packet.
+		# Level info: below Ubuntu's console level (warning), so the consoles are not flooded.
+
+		# SYN without ACK: a new connection attempt. Covers SYN scans (-sS) and connect scans (-sT).
+		tcp flags & (fin | syn | rst | ack) == syn limit rate 25/second burst 100 packets log prefix "hp-scan syn: " level info
+
+		# No flags at all: NULL scan (-sN).
+		tcp flags & (fin | syn | rst | psh | ack | urg) == 0x0 limit rate 25/second burst 100 packets log prefix "hp-scan null: " level info
+
+		# FIN alone: FIN scan (-sF). A real connection's FIN always carries ACK.
+		tcp flags & (fin | syn | rst | psh | ack | urg) == fin limit rate 25/second burst 100 packets log prefix "hp-scan fin: " level info
+
+		# FIN + PSH + URG: Xmas scan (-sX).
+		tcp flags & (fin | syn | rst | psh | ack | urg) == fin | psh | urg limit rate 25/second burst 100 packets log prefix "hp-scan xmas: " level info
+
+		# Not classified: ACK scans (-sA). An ACK-only packet cannot be told apart from stray
+		# packets of old connections without connection tracking. See README, known limitations.
+	}
+}

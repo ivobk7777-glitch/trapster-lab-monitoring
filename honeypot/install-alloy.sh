@@ -19,6 +19,8 @@ apt-get update
 
 echo "== 2/5 Package"
 apt-get install -y alloy
+# The scan sensor pipeline reads kernel messages from the journal (honeypot/scan-sensor.nft).
+id -nG alloy | grep -qw systemd-journal || usermod -aG systemd-journal alloy
 
 echo "== 3/5 Alloy config"
 install -o root -g alloy -m 0640 "$HERE/config.alloy" /etc/alloy/config.alloy

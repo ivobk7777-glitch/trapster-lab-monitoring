@@ -1,0 +1,14 @@
+[Unit]
+Description=Honeypot packet-level scan sensor (nftables log rules, never drops traffic)
+After=network-pre.target nftables.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/hp-scan-sensor/scan-sensor.nft
+ExecReload=/usr/sbin/nft -f /etc/hp-scan-sensor/scan-sensor.nft
+ExecStop=-/usr/sbin/nft delete table inet hp_scan_sensor
+
+[Install]
+WantedBy=multi-user.target

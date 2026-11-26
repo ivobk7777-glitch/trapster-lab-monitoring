@@ -40,6 +40,68 @@ loki.process "trapster" {
   forward_to = [loki.write.logserver.receiver]
 }
 
+// ---------------------------------------------------------------------------------------------
+// Packet-level scan sensor (honeypot/scan-sensor.nft, finding N1).
+// The kernel logs scan packets with the prefix "hp-scan <type>: ". Read them from the journal,
+// keep only those lines, turn each into a small JSON event, and ship it as job="trapster-sensor".
+// The Trapster pipeline above is unchanged.
+
+loki.source.journal "kernel" {
+  // Kernel messages only, and nothing older than 12 hours (no backfill of old boots).
+  matches    = "_TRANSPORT=kernel"
+  max_age    = "12h"
+  labels     = { job = "trapster-sensor", host = "linux-server01" }
+  forward_to = [loki.process.sensor.receiver]
+}
+
+loki.process "sensor" {
+  // Drop every kernel message that is not from the scan sensor.
+  stage.match {
+    selector            = "{job=\"trapster-sensor\"} !~ \"hp-scan \""
+    action              = "drop"
+    drop_counter_reason = "not_scan_sensor"
+  }
+
+  // Drop sensor lines that do not have the expected shape, so no broken JSON is shipped.
+  stage.match {
+    selector            = "{job=\"trapster-sensor\"} !~ \"^hp-scan [a-z]+: IN=[^ ]* .*SRC=[^ ]+ DST=[^ ]+ .*PROTO=TCP SPT=[0-9]+ DPT=[0-9]+\""
+    action              = "drop"
+    drop_counter_reason = "unparsed_scan_line"
+  }
+
+  // Example (IPv4; IPv6 lines have other fields between DST= and PROTO=):
+  // hp-scan syn: IN=ens18 OUT= MAC=... SRC=192.168.10.10 DST=192.168.20.10 LEN=44 ... PROTO=TCP SPT=51234 DPT=22 WINDOW=1024 RES=0x00 SYN URGP=0
+  stage.regex {
+    expression = `^hp-scan (?P<scan>[a-z]+): IN=(?P<iface>\S*) .*?SRC=(?P<src_ip>\S+) DST=(?P<dst_ip>\S+) .*?PROTO=TCP SPT=(?P<src_port>[0-9]+) DPT=(?P<dst_port>[0-9]+)`
+  }
+
+  // logtype is scan.syn, scan.null, scan.fin or scan.xmas: four values, safe as a label.
+  // src_ip and dst_port stay in the line (too many values for labels).
+  stage.template {
+    source   = "logtype"
+    template = "scan.{{ .scan }}"
+  }
+
+  stage.labels {
+    values = {
+      logtype = "",
+    }
+  }
+
+  // Replace the kernel line with JSON that uses Trapster's field names, so the same "| json"
+  // queries work on both streams.
+  stage.template {
+    source   = "event"
+    template = `{"logtype":"{{ .logtype }}","src_ip":"{{ .src_ip }}","src_port":{{ .src_port }},"dst_ip":"{{ .dst_ip }}","dst_port":{{ .dst_port }},"iface":"{{ .iface }}","sensor":"nftables"}`
+  }
+
+  stage.output {
+    source = "event"
+  }
+
+  forward_to = [loki.write.logserver.receiver]
+}
+
 loki.write "logserver" {
   endpoint {
     url = "http://192.168.20.20:3100/loki/api/v1/push"
